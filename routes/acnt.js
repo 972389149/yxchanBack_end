@@ -8,37 +8,53 @@ const acnt = express.Router();
 
 // 登入
 // acntNumber(手机号), acntPassword(密码)
-const login_ = (req, res) => {
-    if(req.query.acntNumber === '') {
+const login_ = async (req, res) => {
+    if (req.body.acntNumber === undefined || req.body.acntPassword === undefined) {
+        return res.send({
+            code: 0,
+            msg: '参数错误!',
+            data: {},
+        });
+    }
+    if(req.body.acntNumber === '') {
         return res.send({
             code: 0,
             msg: '账号不能为空!',
             data: {},
         });
-    } else if(req.query.acntPassword === '') {
+    } else if(req.body.acntPassword === '') {
         return res.send({
             code: 0,
             msg: '密码不能为空!',
             data: {},
         });
     } else {
-        Acnt.findOne({acntNumber: req.query.acntNumber}).then(user => {
-            if(!user) {
-                return res.send({
-                    code: 0,
-                    msg: '账号不存在!',
-                    data: {},
-                });
-            }
-            if(req.query.acntPassword !== user.acntPassword) {
-                return res.send({
-                    code: 0,
-                    msg: '密码错误!',
-                    data: {},
-                });
-            }
-            req.session.acntId = user._id;
-            const {_id, acntNumber, acntName, acntAvatar, acntSignature, acntGithub, acntBlog, acntAddress, acntPower, acntScore} = user;
+        const acntInfo = await Acnt.findOne({acntNumber: req.body.acntNumber}).exec();
+        if(acntInfo === null) {
+            return res.send({
+                code: 0,
+                msg: '账号不存在!',
+                data: {},
+            });
+        } else if (req.body.acntPassword !== acntInfo.acntPassword) {
+            return res.send({
+                code: 0,
+                msg: '密码错误!',
+                data: {},
+            });
+        }
+        const updateLog = await new Promise((resolve, reject)=>{
+            Acnt.updateOne({acntNumber: req.body.acntNumber}, {"$push":{"acntLoginLog": Date.parse(new Date())}}, err => {
+                if(err) {
+                    reject(false);
+                } else {
+                    resolve(true);
+                }
+            })
+        })
+        if (updateLog) {
+            req.session.acntId = acntInfo._id;
+            const {_id, acntNumber, acntName, acntAvatar, acntSignature, acntGithub, acntBlog, acntAddress, acntPower, acntScore} = acntInfo;
             return res.send({
                 code: 1,
                 msg: '登录成功!',
@@ -54,8 +70,14 @@ const login_ = (req, res) => {
                     acntPower,
                     acntScore,
                 },
+            })
+        } else {
+            return res.send({
+                code: 0,
+                msg: '登录失败!',
+                data: {},
             });
-        })
+        }
     }
 }
 
@@ -110,7 +132,7 @@ const check_ = (req, res) => {
             });
         })
     } else{
-        // const auth_token = req.signedCookies['YXC'];
+
         return res.send({
             code: 0,
             msg: '未登录',
@@ -126,7 +148,7 @@ const routeList = {
 }
 
 Object.keys(routeList).forEach(key => {
-    acnt.get(`/${key}`, routeList[key]);
+    acnt.post(`/${key}`, routeList[key]);
 })
 
 module.exports = acnt;

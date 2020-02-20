@@ -1,6 +1,20 @@
 import express from 'express';
+import mongoose from 'mongoose';
+import Article from './../db/models/article';
 const article = express.Router()
-article.get('/', (req, res) => {
-    res.send("测试成功！");
+
+const getArticleList_ = (req, res) => {
+    
+
+}
+
+const routeList = {
+    getArticleList: getArticleList_,
+}
+
+
+Object.keys(routeList).forEach(key => {
+    article.get(`/${key}`, routeList[key]);
 })
+
 module.exports = article;
