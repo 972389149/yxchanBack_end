@@ -5,7 +5,7 @@ import express from 'express';
 import path from 'path';
 import logger from 'morgan';
 
-import cookieParser from 'cookie-parser'
+import cookieParser from 'cookie-parser';
 import session from 'express-session';
 import connectMongo from 'connect-mongo';
 
@@ -30,7 +30,7 @@ app.use(session({
 	resave: true,
 	saveUninitialized: false,
 	cookie: {
-    httpOnly: true,
+    httpOnly: false,
     secure:   false,
     maxAge:   365 * 24 * 60 * 60 * 1000,
   },

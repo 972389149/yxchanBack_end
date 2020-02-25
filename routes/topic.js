@@ -1,13 +1,11 @@
 import express from 'express';
 import mongoose from 'mongoose';
-import Topic from '../db/models/topic.js';
-import Article from './../db/models/article';
-import Acnt from './../db/models/acnt';
-import AcntMessage from '../../../front_end/yxchan/pages/hooks/acntMessage.js';
-const topic = express.Router()
+import { Article, Acnt, Topic } from './../db/models/index';
+
+const topic = express.Router();
 
 // 获取所有话题列表
-const getAllTopic_ = async (req, res) => {
+const getAllTopics_ = async (req, res) => {
     const data = await Topic.findOne({}).exec();
     if (data === null) {
         return res.send({
@@ -21,6 +19,7 @@ const getAllTopic_ = async (req, res) => {
                 _id: item._id,
                 desc: item.desc,
                 key: item.key,
+                total: item.data.length,
             }
         })
         return res.send({
@@ -35,58 +34,129 @@ const getAllTopic_ = async (req, res) => {
 
 // 获取话题下文章
 // topicId
-const getTopicArticle_ = async (req, res) => {
-    // if (req.query.topicId === undefined) {
-    //     return res.send({
-    //         code: 0,
-    //         msg: '参数错误!',
-    //         data: {},
-    //     });
-    // }
-    // const listData = await Topic.findOne({}).exec();
-    // const topicSelect = listData.list.filter(item => {
-    //     return item._id == req.query.topicId;
-    // }) 
-    // if (topicSelect[0] !== undefined) {
+const getTopicArticles_ = async (req, res) => {
+    if (req.query.topicId === undefined) {
+        return res.send({
+            code: 0,
+            msg: '参数错误!',
+            data: {},
+        });
+    }
+    const listData = await Topic.findOne({}).exec();
+    const topicSelect = listData.list.filter(item => {
+        return item._id == req.query.topicId;
+    }) 
+    if (topicSelect[0] !== undefined) {
 
-    //     // const articleIds = topicSelect[0].data.map(id => mongoose.Types.ObjectId(id));
-    //     // const articles = await Article.find({ _id: { $in: articleIds } }).exec();
+        const articleIds = topicSelect[0].data.map(id => mongoose.Types.ObjectId(id));
+        const page = req.query.page === undefined ? 1 : req.query.page;
+        const pageSize = req.query.pageSize === undefined ? 12 : req.query.pageSize;
+        articleIds.reverse();
+        const articles = await Article.find({ _id: { $in: articleIds } }).skip(parseInt((page - 1) * pageSize)).limit(parseInt(pageSize)).sort({'createTime': -1}).exec();
 
-    //     // const authorsList = articles.map(item => {
-    //     //     return item.author;
-    //     // })
-    //     // const authorIds = authorsList[0].data.map(id => mongoose.Types.ObjectId(id));
-    //     // const authors = await Acnt.find({_id: { $in: authorIds }}).exec();
-        
-    //     // const sendList = articles.map((item, index) => {
-    //     //     return {
-    //     //         _id: item._id,
-    //     //         title: item.title,
-    //     //     }
-    //     // })
+        const authorsList = articles.map(item => {
+            return item.author;
+        })
 
-    //     return res.send({
-    //         code: 1,
-    //         msg: '查询成功!',
-    //         data: [],
-    //     });
-    // } else {
-        // return res.send({
-        //     code: 0,
-        //     msg: '话题id错误!',
-        //     data: {},
-        // });
-    // }
-    return res.send({
-        code: 0,
-        msg: '话题id错误!',
-        data: {},
-    });
+        const authorIds = authorsList.map(id => mongoose.Types.ObjectId(id));
+        const authors = await Acnt.find({_id: { $in: authorIds }}).exec();
+        const sendList = articles.map((item, index) => {
+            
+            let thisAuthor;
+            authors.forEach((item_, index_) => {
+                if (item.author == item_._id) {
+                    thisAuthor = index_;
+                }
+            })
+
+            return {
+                _id: item._id,
+                author: {
+                    acntNumber: authors[thisAuthor].acntNumber,
+                    acntName: authors[thisAuthor].acntName,
+                    acntAvatar: authors[thisAuthor].acntAvatar,
+                },
+                title: item.title,
+                type: item.type,
+                description: item.description,
+                createTime: item.createTime,
+                editTime: item.editTime,
+                readCount: item.readCount,
+                beLike: item.beLike.length,
+                collectList: item.collectList.length,
+                commentList: item.commentList.length,
+            }
+        })
+
+        return res.send({
+            code: 1,
+            msg: '查询成功!',
+            data: {
+                list: sendList,
+                total: articleIds.length
+            },
+        });
+    } else {
+        return res.send({
+            code: 0,
+            msg: '话题id错误!',
+            data: {},
+        });
+    }
+}
+
+const getNoneReplies_ = async (req, res) => {
+    if (req.query.topicId === undefined) {
+        return res.send({
+            code: 0,
+            msg: '参数错误!',
+            data: {},
+        });
+    }
+    const listData = await Topic.findOne({}).exec();
+    const topicSelect = listData.list.filter(item => {
+        return item._id == req.query.topicId;
+    }) 
+    if (topicSelect[0] !== undefined) {
+
+        const articleIds = topicSelect[0].data.map(id => mongoose.Types.ObjectId(id));
+        articleIds.reverse();
+        const articles = await Article.find({ _id: { $in: articleIds } }).sort({'createTime': -1}).exec();
+
+        let replies = [];
+        articles.forEach(item => {
+            if (item.commentList.length === 0) {
+                if(replies.length < 5) {
+                    replies.push({
+                        _id: item._id,
+                        title: item.title,
+                    })
+                } else {
+                    return;
+                }
+            }
+        })
+        return res.send({
+            code: 1,
+            msg: '查询成功!',
+            data: {
+                list: replies,
+                total: replies.length
+            },
+        });
+    } else {
+        return res.send({
+            code: 0,
+            msg: '话题id错误!',
+            data: {},
+        });
+    }
 }
 
 const routeList = {
-    getAllTopic: getAllTopic_,
-    getTopicArticle: getTopicArticle_,
+    getAllTopics: getAllTopics_,
+    getTopicArticles: getTopicArticles_,
+    getNoneReplies: getNoneReplies_,
 }
 
 

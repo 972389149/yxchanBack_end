@@ -3,9 +3,8 @@
 */
 import express from 'express';
 import mongoose from 'mongoose';
-import Acnt from './../db/models/acnt';
+import { Acnt, Record, Message, Article } from './../db/models/index';
 const acnt = express.Router();
-
 // 登入
 // acntNumber(手机号), acntPassword(密码)
 const login_ = async (req, res) => {
@@ -141,10 +140,315 @@ const check_ = (req, res) => {
     }
 }
 
+// 查询用户状态
+const getAcntInfo_ = async (req, res) => {
+    if(req.session.acntId) {
+        const id = mongoose.Types.ObjectId(req.session.acntId); 
+        Acnt.findOne({_id: id}).then(user => {
+            if(!user) {
+                return res.send({
+                    code: 0,
+                    msg: '账号不存在!',
+                    data: {},
+                });
+            }
+            req.session.acntId = user._id;
+            const {_id, acntNumber, acntName, acntAvatar, acntSignature, acntGithub, acntBlog, acntAddress, acntPower, acntScore} = user;
+            return res.send({
+                code: 1,
+                msg: '查询成功!',
+                data: {
+                    _id, 
+                    acntNumber, 
+                    acntName,
+                    acntAvatar,
+                    acntSignature,
+                    acntGithub,
+                    acntBlog,
+                    acntAddress,
+                    acntPower,
+                    acntScore,
+                },
+            });
+        })
+    } else {
+        res.send({
+            code: 0,
+            msg: '未登录',
+            data: {}
+        })
+    }
+}
+
+// 注册接口
+// acntNumber(手机号), acntName(用户名), acntPassword(密码) 
+const register_ = async (req, res) => {
+    if (req.body.acntNumber === undefined || req.body.acntPassword === undefined || req.body.acntName === undefined) {
+        return res.send({
+            code: 0,
+            msg: '参数错误!',
+            data: {},
+        });
+    }
+    if (!(/^1[3456789]\d{9}$/.test(req.body.acntNumber))) {
+        return res.send({
+            code: 0,
+            msg: '手机号格式错误!',
+            data: {},
+        });
+    } else if (req.body.acntName.length < 3 || req.body.acntName.length > 12) {
+        return res.send({
+            code: 0,
+            msg: '用户名长度不符!',
+            data: {},
+        });
+    } else if (req.body.acntPassword.length < 8 || req.body.acntPassword.length > 16) {
+        return res.send({
+            code: 0,
+            msg: '密码长度不符!',
+            data: {},
+        });
+    }
+    const hasNumber = await Acnt.findOne({'acntNumber': req.body.acntNumber}).exec();
+    if (hasNumber !== null) {
+        return res.send({
+            code: 0,
+            msg: '手机号已被注册!',
+            data: {},
+        });
+    }
+    const hasName = await Acnt.findOne({'acntName': req.body.acntName}).exec();
+    if (hasName !== null) {
+        return res.send({
+            code: 0,
+            msg: '用户名已被注册!',
+            data: {},
+        });
+    }
+    const acntSave = new Acnt({
+        acntNumber: req.body.acntNumber,
+        acntPassword: req.body.acntPassword,
+        acntName: req.body.acntName,
+        acntAvatar: 'https://zos.alipayobjects.com/rmsportal/ODTLcjxAfvqbxHnVXCYX.png',
+        acntSignature: '这个人很懒，什么都没留下~',
+        acntGithub: '',
+        acntBlog: '',
+        acntAddress: '', 
+        acntRegisterTime: Date.parse(new Date()),
+        acntPower: 0,
+        acntScore: 0,
+        acntLoginLog: [Date.parse(new Date())],
+    })
+
+    acntSave.save((err, doc) => {
+        if(err){
+            return res.send({
+                code: 0,
+                msg: err,
+                data: {},
+            });
+        }
+        const recordSave = new Record({
+            acntId: acntSave._id,
+            collectList: [],
+            createList: [],
+            involeList: [],
+        })
+        const messageSave = new Message({
+            acntId: acntSave._id,
+            unRead: [],
+            read: [],
+        })
+        req.session.acntId = acntSave._id;
+        const {_id, acntNumber, acntName, acntAvatar, acntSignature, acntGithub, acntBlog, acntAddress, acntPower, acntScore} = acntSave;
+        
+        Promise.all([new Promise((resolve, reject) => {
+            recordSave.save((recordDoc, recordErr) => {
+                if (err) {
+                    console.log('记录出错啦', recordErr)
+                    reject(err);
+                }
+                resolve(recordDoc);
+            })
+        }), new Promise((resolve, reject) => {
+            messageSave.save((messageDoc, messageErr) => {
+                if (err) {
+                    console.log('信息出错啦', messageErr)
+                    reject(err);
+                }
+                resolve(messageDoc);
+            })
+        })])
+        .then(result => {
+            res.send({
+                code: 1,
+                msg: '注册成功!',
+                data: {
+                    _id, 
+                    acntNumber, 
+                    acntName,
+                    acntAvatar,
+                    acntSignature,
+                    acntGithub,
+                    acntBlog,
+                    acntAddress,
+                    acntPower,
+                    acntScore,
+                },
+            })
+        })
+        .catch(error => {
+            console.log('catch到的', error);
+            res.send({
+                code: 0,
+                msg: JSON.stringify(err),
+                data: {}
+            })
+        }) 
+    })
+}
+
+// 积分榜排名
+const getScoreRank_ = async (req, res) => {
+    const data = await Acnt.find({}).limit(10).sort({'acntScore': -1}).exec();
+    if (data === null) {
+        return res.send({
+            code: 0,
+            msg: '暂无积分排行信息!',
+            data: {},
+        });
+    } else {
+        const list = data.map(item => {
+            return {
+                _id: item._id,
+                acntName: item.acntName,
+                acntAvatar: item.acntAvatar,
+                acntScore: item.acntScore
+            }
+        })
+        return res.send({
+            code: 1,
+            msg: '获取成功!',
+            data: {
+                list: list,
+            },
+        });
+    }
+}
+
+// 第三用户基本信息
+const acntMessage_ = async (req, res) => {
+    if (req.body.acntName === undefined || req.body.acntName.length < 3 || req.body.acntName.length > 12) {
+        return res.send({
+            code: 0,
+            msg: '用户不存在!',
+            data: {
+                acnt: {
+                    
+                },
+                record: {
+                    createList: [],
+                    collectList: [],
+                    involeList: [],
+                }
+            },
+        });
+    }
+    const acntInfo = await Acnt.findOne({'acntName': req.body.acntName}).exec();
+    if(acntInfo === null) {
+        return res.send({
+            code: 0,
+            msg: '用户不存在!',
+            data: {
+                acnt: {
+                    
+                },
+                record: {
+                    createList: [],
+                    collectList: [],
+                    involeList: [],
+                }
+            },
+        });
+    }
+    const RecordInfo = await Record.findOne({'acntId': acntInfo._id}).exec();
+    if(RecordInfo === null) {
+        return res.send({
+            code: 0,
+            msg: '查询出错!',
+            data: {
+                acnt: {
+                    
+                },
+                record: {
+                    createList: [],
+                    collectList: [],
+                    involeList: [],
+                }
+            },
+        });
+    }
+    const { acntName, acntAvatar, acntSignature, acntGithub, acntBlog, acntAddress, acntScore, acntRegisterTime} = acntInfo;
+    let createList_  = await Article.find({ _id: { $in: RecordInfo.createList }}).sort({'createTime': -1}).exec();
+    let collectList_  = await Article.find({ _id: { $in: RecordInfo.collectList }}).sort({'createTime': -1}).exec();
+    let involeList_  = await Article.find({ _id: { $in: RecordInfo.involeList }}).sort({'createTime': -1}).exec();
+
+    let articleList = [createList_, collectList_, involeList_];
+
+    let acntIdTotal = [];
+    articleList.forEach(item => {
+        item.forEach(item_ => acntIdTotal.push(item_.author));
+    })
+
+    const acntList = await Acnt.find({ _id: { $in: acntIdTotal } }).exec();
+    articleList = articleList.map(item => {
+        return item = item.map(item_ => {
+
+            let acntSelect = null;
+
+            acntList.forEach(i => {
+                if (i._id == item_.author) {
+                    acntSelect = {
+                        acntName: i.acntName,
+                        acntAvatar: i.acntAvatar,
+                    }
+                }
+            })
+            return {
+                _id: item_._id,
+                author: acntSelect,
+                readCount: item_.readCount,
+                commentCount: item_.commentList.length,
+                title: item_.title,
+                type: item_.type,
+            }
+        })
+    })
+
+    return res.send({
+        code: 1,
+        msg: '查询成功!',
+        data: {
+            acnt: {
+                acntName, acntAvatar, acntSignature, acntGithub, acntBlog, acntAddress, acntScore, acntRegisterTime
+            },
+            record: {
+                createList: articleList[0],
+                collectList: articleList[1],
+                involeList: articleList[2],
+            }
+        }
+    })
+}
+
 const routeList = {
     login: login_,
     loginout: loginout_,
     check: check_,
+    getScoreRank: getScoreRank_,
+    register: register_,
+    acntMessage: acntMessage_,
+    getAcntInfo: getAcntInfo_,
 }
 
 Object.keys(routeList).forEach(key => {

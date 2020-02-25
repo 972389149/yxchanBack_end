@@ -1,6 +1,6 @@
 import express from 'express';
 import mongoose from 'mongoose';
-import Article from './../db/models/article';
+import { Article } from './../db/models/index';
 const article = express.Router()
 
 const getArticleList_ = (req, res) => {
