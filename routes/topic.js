@@ -1,6 +1,6 @@
 import express from 'express';
 import mongoose from 'mongoose';
-import { Article, Acnt, Topic } from './../db/models/index';
+import { Article, Acnt, Topic, Record } from './../db/models/index';
 
 const topic = express.Router();
 
@@ -16,9 +16,9 @@ const getAllTopics_ = async (req, res) => {
     } else {
         const list = data.list.map(item => {
             return {
-                _id: item._id,
                 desc: item.desc,
                 key: item.key,
+                type: item.type,
                 total: item.data.length,
             }
         })
@@ -33,9 +33,9 @@ const getAllTopics_ = async (req, res) => {
 }
 
 // 获取话题下文章
-// topicId
+// key
 const getTopicArticles_ = async (req, res) => {
-    if (req.query.topicId === undefined) {
+    if (req.query.key === undefined) {
         return res.send({
             code: 0,
             msg: '参数错误!',
@@ -44,7 +44,7 @@ const getTopicArticles_ = async (req, res) => {
     }
     const listData = await Topic.findOne({}).exec();
     const topicSelect = listData.list.filter(item => {
-        return item._id == req.query.topicId;
+        return item.key == req.query.key;
     }) 
     if (topicSelect[0] !== undefined) {
 
@@ -105,8 +105,9 @@ const getTopicArticles_ = async (req, res) => {
     }
 }
 
+// 无人回复文章
 const getNoneReplies_ = async (req, res) => {
-    if (req.query.topicId === undefined) {
+    if (req.query.key === undefined) {
         return res.send({
             code: 0,
             msg: '参数错误!',
@@ -115,7 +116,7 @@ const getNoneReplies_ = async (req, res) => {
     }
     const listData = await Topic.findOne({}).exec();
     const topicSelect = listData.list.filter(item => {
-        return item._id == req.query.topicId;
+        return item.key == req.query.key;
     }) 
     if (topicSelect[0] !== undefined) {
 
@@ -147,16 +148,67 @@ const getNoneReplies_ = async (req, res) => {
     } else {
         return res.send({
             code: 0,
-            msg: '话题id错误!',
+            msg: '话题key错误!',
             data: {},
         });
     }
+}
+
+// 作者其他文章
+const otherArticle_ = async (req, res) => {
+    if (req.query.id === undefined) {
+        return res.send({
+            code: 0,
+            msg: '参数错误!',
+            data: {},
+        });
+    }
+    
+    const articles_ = await Article.findOne({ _id: mongoose.Types.ObjectId(req.query.id)}).exec();
+    if (articles_ === null) {
+        return res.send({
+            code: 0,
+            msg: '404',
+            data: {},
+        });
+    }
+    const authorList = await Record.findOne({acntId: articles_.author}).exec();
+    if (authorList === null) {
+        return res.send({
+            code: 0,
+            msg: '无此作者!',
+            data: {},
+        });
+    }
+
+    const articleList = authorList.createList.map(id => mongoose.Types.ObjectId(id));
+    const articles = await Article.find({ _id: { $in: articleList } }).sort({'createTime': -1}).exec();
+    let replies = [];
+    articles.forEach(item => {
+        if(replies.length < 5 && (item._id.toString() !== req.query.id)) {
+            replies.push({
+                _id: item._id,
+                title: item.title,
+            })
+        } else {
+            return;
+        }
+    })
+    return res.send({
+        code: 1,
+        msg: '查询成功!',
+        data: {
+            list: replies,
+            total: replies.length
+        },
+    });
 }
 
 const routeList = {
     getAllTopics: getAllTopics_,
     getTopicArticles: getTopicArticles_,
     getNoneReplies: getNoneReplies_,
+    otherArticle: otherArticle_,
 }
 
 

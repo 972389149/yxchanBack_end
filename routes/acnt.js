@@ -1,10 +1,90 @@
 /* 
     created by yuxichan on 2020.02.17
 */
-import express from 'express';
-import mongoose from 'mongoose';
-import { Acnt, Record, Message, Article } from './../db/models/index';
+import express from 'express'
+import mongoose from 'mongoose'
+import multer from 'multer'
+import fs from 'fs'
+
+import { Acnt, Record, Message, Article } from './../db/models/index'
+
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        const id = mongoose.Types.ObjectId(req.session.acntId); 
+        Acnt.findOne({_id: id}).then(user => {
+            const {acntNumber} = user;
+            cb(null, `./public/${acntNumber}/avatar`);
+        })
+    },
+    filename: (req, file, cb) => {
+        let names = file.originalname.split('.');
+        const id = mongoose.Types.ObjectId(req.session.acntId); 
+        Acnt.findOne({_id: id}).then(user => {
+            const {acntNumber} = user;
+            cb(null, acntNumber + '.' + names[names.length-1]);
+        })
+    },
+})
+const fileFilter_ = (req, file, cb) => {
+    if (!req.session.acntId) cb(null, false);
+    try {
+        const names = file.originalname.split('.');
+        const id = mongoose.Types.ObjectId(req.session.acntId); 
+        const file_type=['jpg','png','jpeg', 'JPG', 'PNG', 'JPEG'];
+        if (file_type.indexOf(names[names.length-1]) === -1) {
+            cb(null, false);
+        } else {
+            Acnt.findOne({_id: id}).then(user => {
+                new Promise((resolve, reject) => {
+                    fs.exists(`public/${user.acntNumber}/avatar`, exists => {
+                        if(exists){
+                            resolve();
+                        }else {
+                            fs.mkdir(`public/${user.acntNumber}/avatar`, err => {
+                                if (err) {
+                                    reject();
+                                }
+                                resolve();
+                            });
+                        }
+                    })
+                })
+                .then(val => {
+                    Acnt.updateOne({
+                        _id: id,
+                    }, {
+                        $set: {
+                            acntAvatar: `${user.acntNumber}/avatar/${user.acntNumber}.${names[names.length-1]}`,
+                        }
+                    }).then(val => {
+                        new Promise((resolve, reject) => {
+                            if (user.acntAvatar !== 'default.png') {
+                                fs.unlink(`./public/${user.acntAvatar}`, () => {
+                                    resolve();
+                                })
+                            }else {
+                                resolve();
+                            }
+                        })
+                        .then(val => {
+                            cb(null, true);
+                        })
+                    })
+                })
+                .catch(err => {
+                    cb(new Error('文件类型错误!'))
+                })
+            })
+        }
+    }catch(err) {
+        cb(new Error('文件类型错误!'))
+    }
+}   
+const upload = multer({ storage: storage, fileFilter: fileFilter_ }).single('avatar');
+
+
 const acnt = express.Router();
+
 // 登入
 // acntNumber(手机号), acntPassword(密码)
 const login_ = async (req, res) => {
@@ -99,7 +179,7 @@ const loginout_ = (req, res) => {
     });
 }
 
-// 检查是否登录
+// 检查是否登录（废弃）
 const check_ = (req, res) => {
     if(req.session.acntId){
         const id = mongoose.Types.ObjectId(req.session.acntId); 
@@ -225,11 +305,27 @@ const register_ = async (req, res) => {
             data: {},
         });
     }
+    const createFile = await new Promise((resolve, reject) => {
+        fs.mkdir(`public/${req.body.acntNumber}`, err => {
+            if (err) {
+                reject(false);
+            }
+            resolve(true);
+        });
+    })
+    if (!createFile) {
+        return res.send({
+            code: 0,
+            msg: '创建用户文件失败!',
+            data: {},
+        });
+    }
+
     const acntSave = new Acnt({
         acntNumber: req.body.acntNumber,
         acntPassword: req.body.acntPassword,
         acntName: req.body.acntName,
-        acntAvatar: 'https://zos.alipayobjects.com/rmsportal/ODTLcjxAfvqbxHnVXCYX.png',
+        acntAvatar: 'default.png',
         acntSignature: '这个人很懒，什么都没留下~',
         acntGithub: '',
         acntBlog: '',
@@ -261,11 +357,10 @@ const register_ = async (req, res) => {
         })
         req.session.acntId = acntSave._id;
         const {_id, acntNumber, acntName, acntAvatar, acntSignature, acntGithub, acntBlog, acntAddress, acntPower, acntScore} = acntSave;
-        
+
         Promise.all([new Promise((resolve, reject) => {
             recordSave.save((recordDoc, recordErr) => {
                 if (err) {
-                    console.log('记录出错啦', recordErr)
                     reject(err);
                 }
                 resolve(recordDoc);
@@ -273,7 +368,6 @@ const register_ = async (req, res) => {
         }), new Promise((resolve, reject) => {
             messageSave.save((messageDoc, messageErr) => {
                 if (err) {
-                    console.log('信息出错啦', messageErr)
                     reject(err);
                 }
                 resolve(messageDoc);
@@ -298,7 +392,6 @@ const register_ = async (req, res) => {
             })
         })
         .catch(error => {
-            console.log('catch到的', error);
             res.send({
                 code: 0,
                 msg: JSON.stringify(err),
@@ -441,6 +534,217 @@ const acntMessage_ = async (req, res) => {
     })
 }
 
+// 保存设置
+const configSave_ = async (req, res) => {
+    const reqList = ['acntName', 'acntAddress', 'acntBlog', 'acntGithub', 'acntSignature'];
+    reqList.forEach(item => {
+        if (req.body[item] === undefined) {
+            res.send({
+                code: 0,
+                msg: '参数错误!',
+                data: {},
+            })
+        }
+    })
+    const bodyList = [{
+        key: req.body.acntName.length,
+        minlen: 3,
+        maxlen: 12,
+        desc: '用户名',
+    }, {
+        key: req.body.acntAddress.length,
+        minlen: 0,
+        maxlen: 30,
+        desc: '所在地',
+    }, {
+        key: req.body.acntBlog.length,
+        minlen: 0,
+        maxlen: 30,
+        desc: '个人站点',
+    }, {
+        key: req.body.acntGithub.length,
+        minlen: 0,
+        maxlen: 30,
+        desc: 'Github',
+    }, {
+        key: req.body.acntSignature.length,
+        minlen: 0,
+        maxlen: 50,
+        desc: '个性签名',
+    }];
+    bodyList.forEach(item => {
+        if (item.key < item.minlen || item.key > item.maxlen) {
+            return res.send({
+                code: 0,
+                msg: `${item.desc}超过长度限制!`,
+                data: {},
+            });
+        }
+    })
+    if (req.session.acntId) {
+        const checkName = await Acnt.findOne({acntName: req.body.acntName, _id: {$ne: mongoose.Types.ObjectId(req.session.acntId)}}).exec();
+        console.log(checkName)
+        if (checkName !== null) {
+            return res.send({
+                code: 0,
+                msg: `用户名已被占用!`,
+                data: {},
+            })
+        }
+        const acntUpdate = await Acnt.updateOne({
+            _id: mongoose.Types.ObjectId(req.session.acntId),
+        }, {
+	        $set: {
+                acntName: req.body.acntName,
+                acntAddress: req.body.acntAddress,
+                acntBlog: req.body.acntBlog,
+                acntGithub: req.body.acntGithub,
+                acntSignature: req.body.acntSignature,
+	    	}
+        })
+        if (acntUpdate.ok === 1) {
+            return res.send({
+                code: 1,
+                msg: `保存成功!`,
+                data: {
+                    acntName: req.body.acntName,
+                    acntAddress: req.body.acntAddress,
+                    acntBlog: req.body.acntBlog,
+                    acntGithub: req.body.acntGithub,
+                    acntSignature: req.body.acntSignature,
+                },
+            });
+        } else {
+            return res.send({
+                code: 0,
+                msg: `保存失败!`,
+                data: {},
+            });
+        }
+    }else {
+        return res.send({
+            code: 0,
+            msg: `未登录!`,
+            data: {},
+        });
+    }
+}
+
+// 修改密码
+const setPassword_ = async (req, res) => {
+    if (req.session.acntId) {
+        if(req.body.oldPassword === undefined || req.body.newPassword === undefined) {
+            return res.send({
+                code: 0,
+                msg: '参数错误!',
+                data: {},
+            })
+        }
+        const id = mongoose.Types.ObjectId(req.session.acntId); 
+        const info = await Acnt.findOne({_id: id}).exec();
+        if(!info) {
+            return res.send({
+                code: 0,
+                msg: '用户不存在!',
+                data: {},
+            })
+        }
+        if(info.acntPassword !== req.body.oldPassword) {
+            return res.send({
+                code: 0,
+                msg: '验证错误!',
+                data: {},
+            })
+        }
+        if(req.body.newPassword.length > 16 || req.body.newPassword.length < 8) {
+           return res.send({
+            code: 0,
+            msg: '密码长度不足!',
+            data: {},
+           }) 
+        }
+        Acnt.updateOne({_id: id}, {
+            $set: {
+                acntPassword: req.body.newPassword,
+            }
+        })
+        .then(val => {
+            if (val.ok === 1) {
+                res.send({
+                    code: 1,
+                    msg: '修改成功!',
+                    data: {},
+                })
+            }else {
+                res.send({
+                    code: 0,
+                    msg: '修改密码错误!',
+                    data: {},
+                })
+            }
+        })
+        .catch(err => {
+            res.send({
+                code: 0,
+                msg: '修改密码错误!',
+                data: {},
+            })
+        })
+    }else {
+        return res.send({
+            code: 0,
+            msg: '未登录',
+            data: {}
+        })
+    }
+}
+
+// 上传头像
+acnt.post('/uploadAvatar', async (req, res) => {
+    if (req.session.acntId) {
+        const id = mongoose.Types.ObjectId(req.session.acntId); 
+        Acnt.findOne({_id: id}).then(user => {
+            if(!user) {
+                return res.send({
+                    code: 0,
+                    msg: '账号不存在!',
+                    data: {},
+                });
+            }
+            upload(req, res, err => {
+                if (err instanceof multer.MulterError || err) {
+                    res.send({
+                        code: 0,
+                        msg: err,
+                        data: {},
+                    })
+                }
+                if (req.file !== undefined) {
+                    res.send({
+                        code: 1,
+                        msg: '上传成功!',
+                        data: {
+                            acntAvatar: `${user.acntNumber}/avatar/${req.file.filename}?${Date.parse(new Date())}`,
+                        },
+                    })
+                } else {
+                    res.send({
+                        code: 0,
+                        msg: '上传失败!',
+                        data: {},
+                    })
+                }
+            })  
+        })
+    } else {
+        res.send({
+            code: 0,
+            msg: '未登录!',
+            data: {},
+        })
+    }
+});
+
 const routeList = {
     login: login_,
     loginout: loginout_,
@@ -449,6 +753,8 @@ const routeList = {
     register: register_,
     acntMessage: acntMessage_,
     getAcntInfo: getAcntInfo_,
+    configSave: configSave_,
+    setPassword: setPassword_,
 }
 
 Object.keys(routeList).forEach(key => {

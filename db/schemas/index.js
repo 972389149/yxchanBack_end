@@ -40,7 +40,6 @@ const articleSchema = new Schema({
     description: String,
     content: String,
     createTime: String,
-    editTimes: String,
     editTime: String,
     readCount: Number,
     beLike: Array,
