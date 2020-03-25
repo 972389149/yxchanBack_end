@@ -55,7 +55,7 @@ const getMessage_ = async (req, res) => {
     await Message.updateOne({acntId: req.session.acntId}, {
       $set: {
         unRead: [],
-        read: message.read.concat(message.unRead),
+        read: message.read.concat(message.unRead).slice(0, 100),
       }
     }).exec();
 

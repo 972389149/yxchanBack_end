@@ -877,6 +877,19 @@ const comment_ = async (req, res) => {
             }
         })
 
+        const userUpdate = await Acnt.updateOne({'_id': mongoose.Types.ObjectId(req.session.acntId)}, {
+            $set: {
+                acntScore: user.acntScore + 50,
+            },
+        })
+        if (userUpdate.ok !== 1) {
+            return res.send({
+                code: 0,
+                msg: '积分添加失败!',
+                data: {}
+            })
+        }
+
         return res.send({
             code: 1,
             msg: '发布成功!',
