@@ -879,7 +879,7 @@ const comment_ = async (req, res) => {
 
         const userUpdate = await Acnt.updateOne({'_id': mongoose.Types.ObjectId(req.session.acntId)}, {
             $set: {
-                acntScore: user.acntScore + 10,
+                acntScore: acntInfo.acntScore + 10,
             },
         })
         if (userUpdate.ok !== 1) {
