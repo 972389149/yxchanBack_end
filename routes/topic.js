@@ -52,6 +52,7 @@ const getTopicArticles_ = async (req, res) => {
         const page = req.query.page === undefined ? 1 : req.query.page;
         const pageSize = req.query.pageSize === undefined ? 12 : req.query.pageSize;
         articleIds.reverse();
+        const totalLen = await Article.find({ _id: { $in: articleIds } }).exec();
         const articles = await Article.find({ _id: { $in: articleIds } }).skip(parseInt((page - 1) * pageSize)).limit(parseInt(pageSize)).sort({'createTime': -1}).exec();
 
         const authorsList = articles.map(item => {
@@ -93,7 +94,7 @@ const getTopicArticles_ = async (req, res) => {
             msg: '查询成功!',
             data: {
                 list: sendList,
-                total: articleIds.length
+                total: totalLen.length,
             },
         });
     } else {
