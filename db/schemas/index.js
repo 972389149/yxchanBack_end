@@ -52,10 +52,18 @@ const topicSchema = new Schema({
 	list: Array,
 });
 
+// 性能数据
+const prefSchema = new Schema({
+    Index: Array,
+    Article: Array,
+    Acnt: Array,
+});
+
 module.exports = {
     acntSchema,
     recordSchema,
     messageSchema,
     articleSchema,
     topicSchema,
+    prefSchema,
 };

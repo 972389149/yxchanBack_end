@@ -7,11 +7,13 @@ const Record = mongoose.model('records', recordSchema);
 const Message = mongoose.model('messages', messageSchema);
 const Article = mongoose.model('articles', articleSchema);
 const Topic = mongoose.model('topics', topicSchema);
+const Pref = mongoose.model('prefs', prefSchema);
 
 module.exports = {
     Acnt,
     Record,
     Message,
     Article,
-    Topic
+    Topic,
+    Pref,
 };
