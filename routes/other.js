@@ -39,13 +39,16 @@ const pref_ = async (req, res) => {
       })
     }
     const check = [queryData.dom, queryData.domready, queryData.firstScreen, queryData.onload, queryData.request];
-    console.log('来了', check)
     if (check.indexOf(undefined) !== -1) {
       return res.send({
         code: 0,
         msg: '上报信息错误!',
         data: {}
       })
+    }
+
+    if (list[req.query.page].length > 1000) {
+      list[req.query.page] = list[req.query.page].slice(list[req.query.page].length - 1000 , list[req.query.page].length);
     }
     list[req.query.page].push(queryData);
     const update = await Pref.updateOne({}, {
