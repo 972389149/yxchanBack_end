@@ -29,7 +29,17 @@ const pref_ = async (req, res) => {
         data: {},
       })
     }
-    const check = [req.query.data.dom, req.query.data.domready, req.query.data.firstScreen, req.query.data.onload, req.query.data.request];
+    let queryData;
+    try {
+      queryData = JSON.parse(req.query.data)
+    }catch(err) {
+      return res.send({
+        code: 0,
+        msg: err,
+        data: {}
+      })
+    }
+    const check = [queryData.dom, queryData.domready, queryData.firstScreen, queryData.onload, queryData.request];
     if (check.indexOf(undefined) !== -1) {
       return res.send({
         code: 0,
@@ -37,7 +47,7 @@ const pref_ = async (req, res) => {
         data: {}
       })
     }
-    list[req.query.page].push(req.query.data);
+    list[req.query.page].push(queryData);
     const update = await Pref.updateOne({}, {
       $set: {
         Index: list.Index,
