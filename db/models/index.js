@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 
-import { acntSchema, recordSchema, messageSchema, articleSchema, topicSchema } from './../schemas/index';
+import { acntSchema, recordSchema, messageSchema, articleSchema, topicSchema, prefSchema } from './../schemas/index';
 
 const Acnt = mongoose.model('acnts', acntSchema);
 const Record = mongoose.model('records', recordSchema);
