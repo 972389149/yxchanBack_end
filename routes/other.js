@@ -12,7 +12,6 @@ const checkNet_ = (req, res) => {
 }
 
 const pref_ = async (req, res) => {
-  console.log(req.query);
   if (req.query.data === undefined || req.query.data === null) {
     if (['Index', 'Article', 'Acnt'].indexOf(req.query.page) === -1) {
       return res.send({
@@ -40,6 +39,7 @@ const pref_ = async (req, res) => {
       })
     }
     const check = [queryData.dom, queryData.domready, queryData.firstScreen, queryData.onload, queryData.request];
+    console.log('来了', check)
     if (check.indexOf(undefined) !== -1) {
       return res.send({
         code: 0,
