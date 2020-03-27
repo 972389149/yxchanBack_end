@@ -12,7 +12,7 @@ const checkNet_ = (req, res) => {
 }
 
 const pref_ = async (req, res) => {
-  if (req.query.data === undefined || req.query.data === null) {
+  if (!(req.query.data === undefined || req.query.data === null)) {
     if (['Index', 'Article', 'Acnt'].indexOf(req.query.page) === -1) {
       return res.send({
         code: 0,
@@ -79,9 +79,27 @@ const pref_ = async (req, res) => {
   }
 }
 
+const getPref_ = async (req, res) => {
+  const list = await Pref.findOne({}).exec();
+  if (list === null) {
+    return res.send({
+      code: 0,
+      msg: '性能数据异常!',
+      data: {},
+    })
+  }
+  return res.send({
+    code: 1,
+    msg: '查询成功！',
+    data: list,
+  })
+
+}
+
 const routeList = {
     checkNet: checkNet_,
     pref: pref_,
+    getPref: getPref_,
 }
 
 Object.keys(routeList).forEach(key => {
