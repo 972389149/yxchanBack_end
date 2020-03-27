@@ -12,6 +12,7 @@ const checkNet_ = (req, res) => {
 }
 
 const pref_ = async (req, res) => {
+  console.log(req.query);
   if (req.query.data === undefined || req.query.page === undefined) {
     if (['Index', 'Article', 'Acnt'].indexOf(req.query.page) === -1) {
       return res.send({
