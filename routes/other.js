@@ -13,7 +13,7 @@ const checkNet_ = (req, res) => {
 
 const pref_ = async (req, res) => {
   console.log(req.query);
-  if (req.query.data === undefined || req.query.page === undefined) {
+  if (req.query.data === undefined || req.query.data === null) {
     if (['Index', 'Article', 'Acnt'].indexOf(req.query.page) === -1) {
       return res.send({
         code: 0,
@@ -27,6 +27,14 @@ const pref_ = async (req, res) => {
         code: 0,
         msg: '上报异常!',
         data: {},
+      })
+    }
+    const check = [req.query.data.dom, req.query.data.domready, req.query.data.firstScreen, req.query.data.onload, req.query.data.request];
+    if (check.indexOf(undefined) !== -1) {
+      return res.send({
+        code: 0,
+        msg: '上报信息错误!',
+        data: {}
       })
     }
     list[req.query.page].push(req.query.data);
